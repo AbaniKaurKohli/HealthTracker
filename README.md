@@ -1,1 +1,3 @@
-Personalized Health Tracker by Abani Kaur Kohli
+## Healthify
+
+- Personalized Health Tracker by Abani Kaur Kohli
