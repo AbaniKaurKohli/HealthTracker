@@ -1,0 +1,39 @@
+apiVersion: v1
+data:
+  Dockerfile: |
+    # Use an official Python runtime as a parent image
+    FROM python:3.8-slim
+
+    # Set the working directory
+    WORKDIR /app
+
+    # Copy the requirements.txt into the container
+    COPY requirements.txt /app/
+
+    # Install the dependencies
+    RUN pip install --no-cache-dir -r requirements.txt
+    # Set the environment variable for Flask
+    ENV FLASK_APP=bmi_service.py
+
+    # Copy the current directory contents into the container
+    COPY . /app/
+
+    COPY bmi_service.py /app/
+    WORKDIR /app
+
+
+    # Expose the port the app runs on
+    EXPOSE 5002
+
+    # Define the command to run the app
+    CMD ["python", "bmi_service.py"]
+  bmi_service.py: "from flask import Flask, request, jsonify\nfrom flask_cors import CORS\n\napp = Flask(__name__)\nCORS(app)  # Allow all origins\n\n@app.route('/calculate_bmi', methods=['POST'])\ndef calculate_bmi():\n    # Parse input JSON\n    data = request.json\n    print(\"Received payload in BMI service:\", data)  # Debug log\n\n    try:\n        # Extract weight and height, and validate input\n        weight = float(data.get('weight', 0))\n        height = float(data.get('height', 0))\n        \n        if weight <= 0 or height <= 0:\n            return jsonify({\"error\": \"Invalid weight or height provided\"}), 400\n        \n        # BMI calculation\n        bmi = round(weight / (height * height), 2)\n        print(f\"Calculated BMI: {bmi}\")  # Debug log\n        \n        # Determine BMI category and advice\n        if bmi < 18.5:\n            advice = \"Underweight: Consider consulting a healthcare provider to assess your nutritional status.\"\n        elif 18.5 <= bmi < 24.9:\n            advice = \"Normal weight: Maintain a balanced diet and regular exercise.\"\n        elif 25 <= bmi < 29.9:\n            advice = \"Overweight: Aim for a healthy diet and more physical activity.\"\n        else:\n            advice = \"Obesity: Seek medical advice for weight management strategies.\"\n        \n        # Respond with BMI and advice\n        return jsonify({\n            \"bmi\": bmi,\n            \"advice\": advice\n        })\n    \n    except (TypeError, ValueError) as e:\n        print(f\"Error in BMI calculation: {e}\")\n        return jsonify({\"error\": \"Invalid input provided for BMI calculation\"}), 400\n\nif __name__ == '__main__':\n    app.run(host='0.0.0.0', port=5002, debug=True)\n"
+  requirements.txt: |
+    flask-cors==5.0.0
+    Flask==2.1.2
+    Werkzeug==2.1.2
+kind: ConfigMap
+metadata:
+  labels:
+    io.kompose.service: bmi-service
+  name: bmi-service-cm0

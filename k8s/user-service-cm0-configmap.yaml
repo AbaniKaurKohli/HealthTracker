@@ -1,0 +1,32 @@
+apiVersion: v1
+data:
+  Dockerfile: |
+    FROM python:3.8-slim
+
+    WORKDIR /app
+
+    COPY requirements.txt /app/
+
+    CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "user_service:app"]
+
+
+    RUN pip install --no-cache-dir -r requirements.txt
+    RUN pip install requests
+
+    COPY . /app/
+
+    EXPOSE 5001
+
+    CMD ["python", "user_service.py"]
+  models.py: ""
+  requirements.txt: |
+    Flask
+    pandas
+    requests
+    gunicorn
+  user_service.py: "from flask import Flask, request, jsonify\nimport pandas as pd\nimport requests\n\napp = Flask(__name__)\n\n# Load user data (replace with actual database or data handling method)\nusers = []\n\n# Function to calculate BMI\ndef calculate_bmi(weight, height):\n    return round(weight / (height * height), 2)\n\n# Function to get exercise recommendations based on BMI\ndef recommend_exercises(bmi):\n    try:\n        recommendations = requests.post(\"http://exercise-service:5003/recommend_exercises\", json={\"bmi\": bmi}).json()\n        if \"error\" in recommendations:\n            raise ValueError(\"Failed to fetch exercise recommendations\")\n        return recommendations\n    except Exception as e:\n        return {\"error\": str(e)}\n\n# Endpoint to add a user profile\n@app.route('/add_user', methods=['POST'])\ndef add_user():\n    try:\n        data = request.json\n        name = data.get(\"name\")\n        age = data.get(\"age\")\n        gender = data.get(\"gender\")\n        weight = data.get(\"weight\")\n        height = data.get(\"height\")\n\n        # Validate input\n        if not name or not age or weight <= 0 or height <= 0:\n            return jsonify({\"error\": \"Invalid input provided\"}), 400\n        \n        # Calculate BMI\n        bmi = calculate_bmi(weight, height)\n\n        # Get exercise recommendations based on BMI\n        exercise_recommendations = recommend_exercises(bmi)\n        \n        # Store user data (you can replace this with actual database logic)\n        user_data = {\n            \"name\": name,\n            \"age\": age,\n            \"gender\": gender,\n            \"weight\": weight,\n            \"height\": height,\n            \"bmi\": bmi,\n            \"exercise_recommendations\": exercise_recommendations\n        }\n        \n        users.append(user_data)  # Add user to the list (or save to database)\n        \n        return jsonify(user_data), 201\n    \n    except Exception as e:\n        return jsonify({\"error\": str(e)}), 500\n\n# Endpoint to get all user profiles\n@app.route('/get_users', methods=['GET'])\ndef get_users():\n    try:\n        return jsonify(users), 200\n    except Exception as e:\n        return jsonify({\"error\": str(e)}), 500\n\n# Endpoint to delete a user profile by name\n@app.route('/delete_user', methods=['DELETE'])\ndef delete_user():\n    try:\n        data = request.json\n        name = data.get(\"name\")\n\n        if not name:\n            return jsonify({\"error\": \"Name is required to delete profile\"}), 400\n\n        # Find and remove the user from the list\n        user_to_delete = next((user for user in users if user[\"name\"] == name), None)\n\n        if user_to_delete:\n            users.remove(user_to_delete)\n            return jsonify({\"message\": f\"User {name} deleted successfully\"}), 200\n        else:\n            return jsonify({\"error\": f\"User with name {name} not found\"}), 404\n\n    except Exception as e:\n        return jsonify({\"error\": str(e)}), 500\n\n# Readiness probe endpoint\n@app.route('/readiness', methods=['GET'])\ndef readiness():\n    return jsonify({\"status\": \"ready\"}), 200\n\n# Health probe endpoint\n@app.route('/health', methods=['GET'])\ndef health():\n    return jsonify({\"status\": \"healthy\"}), 200\n\nif __name__ == '__main__':\n    app.run(host=\"0.0.0.0\", port=5001, debug=True)\n"
+kind: ConfigMap
+metadata:
+  labels:
+    io.kompose.service: user-service
+  name: user-service-cm0

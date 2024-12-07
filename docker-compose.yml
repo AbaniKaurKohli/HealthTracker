@@ -1,0 +1,67 @@
+version: '3.8'
+services:
+  bmi-service:
+    build:
+      context: ./health_prediction_service
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_APP=bmi_service.py
+    volumes:
+      - ./health_prediction_service:/app
+    depends_on:
+      - user-service
+    networks:
+      - mynetwork
+  
+  exercise-service:
+    build:
+      context: ./exercise_recommendation_service
+    ports:
+      - "5004:5003"
+    environment:
+      - FLASK_APP=exercise_service.py
+    volumes:
+      - ./exercise_recommendation_service:/app
+    depends_on:
+      - user-service
+    networks:
+      - mynetwork
+
+  user-service:
+    build:
+      context: ./user_profile_service
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_APP=user_service.py
+    volumes:
+      - ./user_profile_service:/app
+    networks:
+      - mynetwork
+
+  frontend:
+    build:
+      context: ./frontend_streamlit
+    ports:
+      - "8504:8501"  # Corrected this line
+    environment:
+      - FLASK_APP=streamlit_frontend.py
+    volumes:
+      - ./frontend_streamlit:/app
+    depends_on:
+      - bmi-service
+      - exercise-service
+      - user-service
+    networks:
+      - mynetwork
+    healthcheck:
+      test: ["CMD", "curl", "--silent", "--fail", "http://localhost:8501"]  # Corrected indentation
+      interval: 30s
+      retries: 3
+      start_period: 10s
+      timeout: 10s
+
+networks:
+  mynetwork:
+    driver: bridge
